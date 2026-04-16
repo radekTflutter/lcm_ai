@@ -1,0 +1,1414 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Wizard Steps -->
+    <div class="bg-gray-800 rounded-lg p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-purple-400">Wizard - Krok {{ stage }}/5</h2>
+            <div class="flex space-x-2">
+                {% for i in "12345" %}
+                <div class="w-12 h-12 rounded-full flex items-center justify-center {% if forloop.counter <= stage %}bg-purple-600 text-white{% else %}bg-gray-700 text-gray-400{% endif %}">
+                    {{ forloop.counter }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="w-full bg-gray-700 rounded-full h-2.5 mb-6">
+            <div class="bg-purple-600 h-2.5 rounded-full" style="width: {{ progress_percent }}%"></div>
+        </div>
+    </div>
+    
+    <!-- Stage 1: Camera Configuration -->
+    {% if stage == 1 %}
+    <div class="bg-gray-800 rounded-lg p-6">
+        <h3 class="text-xl font-bold mb-4 text-purple-300">1. Wybór kamery</h3>
+        <p class="text-gray-400 text-sm mb-4">Kamery dodajesz w <a href="/admin/factory/camera/" class="text-purple-400 underline">panelu admina</a> i ustawiasz tam adres strumienia (URL MJPEG, np. http://10.11.59.18/axis-cgi/mjpg/video.cgi). Tutaj wybierasz tylko którą kamerę podłączyć.</p>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium mb-2">Kamera</label>
+                <select id="camera-select" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                    <option value="">— wybierz kamerę —</option>
+                    {% for cam in cameras %}
+                    <option value="{{ cam.id }}">{{ cam.name }} ({{ cam.ip_address }})</option>
+                    {% endfor %}
+                </select>
+                <button id="connect-camera-btn" type="button" class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    Połącz i pokaż podgląd
+                </button>
+            </div>
+            
+            <div>
+                <div class="bg-gray-900 rounded-lg p-4 mb-4">
+                    <h4 class="text-lg font-semibold mb-2">Podgląd na żywo</h4>
+                    <div id="camera-preview" class="bg-black rounded-lg aspect-video flex items-center justify-center">
+                        <p class="text-gray-500">Wybierz kamerę i kliknij „Połącz i pokaż podgląd”</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Stage 2: Background Calibration -->
+    {% if stage == 2 %}
+    <div class="bg-gray-800 rounded-lg p-6">
+        <h3 class="text-xl font-bold mb-4 text-purple-300">2. Kalibracja Tła</h3>
+        <p class="text-gray-400 text-sm mb-4">Ta sama kamera co w kroku 1. Wybierz kamerę, połącz i pobierz wzorzec na żywo. Wzorzec można też ustawić w <a href="/admin/factory/backgroundcalibration/" class="text-purple-400 underline">panelu admina</a> (upload pliku lub ścieżka do pliku).</p>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium mb-2">Kamera</label>
+                <select id="camera-select" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                    <option value="">— wybierz kamerę —</option>
+                    {% for cam in cameras %}
+                    <option value="{{ cam.id }}">{{ cam.name }} ({{ cam.ip_address }})</option>
+                    {% endfor %}
+                </select>
+                <button id="connect-camera-btn" type="button" class="mt-2 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition">Połącz i pokaż podgląd</button>
+                <div class="mt-4 bg-gray-900 rounded-lg p-4">
+                    <h4 class="text-lg font-semibold mb-2">Podgląd na żywo</h4>
+                    <div id="camera-preview" class="bg-black rounded-lg aspect-video flex items-center justify-center">
+                        <p class="text-gray-500">Wybierz kamerę i kliknij „Połącz i pokaż podgląd”</p>
+                    </div>
+                </div>
+                <button id="use-admin-background-btn" type="button" class="mt-4 w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg transition">
+                    📁 Użyj wzorca z panelu admina
+                </button>
+                <p class="text-gray-500 text-xs mt-1">Jeśli wgrałeś zdjęcie tła w adminie (lub wpisałeś ścieżkę), kliknij tutaj – podgląd kamery nie jest potrzebny.</p>
+                <button id="capture-background-btn" class="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg transition text-lg">
+                    📸 Pobierz wzorzec tła z kamery
+                </button>
+                <p class="text-gray-500 text-xs mt-1">Albo połącz z kamerą powyżej i pobierz wzorzec na żywo.</p>
+            </div>
+            
+            <div>
+                <div class="bg-gray-900 rounded-lg p-4 mb-4">
+                    <h4 class="text-lg font-semibold mb-2">Parametry HSV</h4>
+                    <div id="hsv-params" class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>H Min:</span>
+                            <span id="h-min" class="text-purple-400">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>S Min:</span>
+                            <span id="s-min" class="text-purple-400">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>V Min:</span>
+                            <span id="v-min" class="text-purple-400">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>H Max:</span>
+                            <span id="h-max" class="text-purple-400">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>S Max:</span>
+                            <span id="s-max" class="text-purple-400">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>V Max:</span>
+                            <span id="v-max" class="text-purple-400">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Stage 3: Data Collection -->
+    {% if stage == 3 %}
+    <div class="bg-gray-800 rounded-lg p-6">
+        <h3 class="text-xl font-bold mb-4 text-purple-300">3. Zbieranie Danych & Auto-labeling</h3>
+        <p class="text-gray-400 text-sm mb-4">Ta sama kamera – wybierz z listy i połącz. Tryb: automatyczne etykietowanie (różnica od tła) lub ręczne zaznaczanie prostokątów myszką.</p>
+        
+        <div class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium mb-2">Nazwa datasetu</label>
+                <input type="text" id="dataset-name" value="Dataset_1" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                <button id="create-dataset-btn" class="mt-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">
+                    Utwórz Dataset
+                </button>
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-2">Tryb etykietowania</label>
+                <div class="flex flex-wrap gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="label-mode" value="auto" checked class="rounded bg-gray-700 text-purple-500">
+                        <span>Automatyczne (wykrywanie od tła)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="label-mode" value="semiauto" class="rounded bg-gray-700 text-purple-500">
+                        <span>Półautomatyczne (jedno zdjęcie ręcznie → potem auto)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="label-mode" value="manual" class="rounded bg-gray-700 text-purple-500">
+                        <span>Ręczne (zaznaczasz prostokąty myszką)</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Kamera</label>
+                    <select id="camera-select" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                        <option value="">— wybierz kamerę —</option>
+                        {% for cam in cameras %}
+                        <option value="{{ cam.id }}">{{ cam.name }} ({{ cam.ip_address }})</option>
+                        {% endfor %}
+                    </select>
+                    <button id="connect-camera-btn" type="button" class="mt-2 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition">Połącz i pokaż podgląd</button>
+                    <div class="mt-4 bg-gray-900 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold mb-2">Podgląd i ROI</h4>
+                        <div class="relative rounded-lg overflow-hidden bg-black aspect-video" id="camera-preview-wrapper">
+                            <div id="camera-preview" class="w-full h-full flex items-center justify-center min-h-[200px]">
+                                <p class="text-gray-500">Wybierz kamerę i kliknij „Połącz i pokaż podgląd”</p>
+                            </div>
+                            <canvas id="roi-canvas" class="absolute top-0 left-0 rounded-lg border-2 border-purple-400 pointer-events-none" style="display:none;"></canvas>
+                        </div>
+                        <p class="text-gray-500 text-xs mt-1">ROI (polygon): <strong>w zbieraniu automatycznym</strong> puszki są wykrywane <strong>tylko wewnątrz ROI</strong> – zdefiniuj polygon nad swoim transportem, żeby ignorować puszki z drugiego transportera (tło). Klikaj punkt po punkcie, potem „Zamknij polygon” i „Zapisz ROI”.</p>
+                        <div class="flex flex-wrap gap-2 mt-2 items-center">
+                            <button type="button" id="define-roi-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded transition">Zdefiniuj ROI (polygon)</button>
+                            <button type="button" id="close-roi-polygon-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded transition" style="display:none;">Zamknij polygon</button>
+                            <button type="button" id="save-roi-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition" style="display:none;">Zapisz ROI</button>
+                            <span id="roi-status" class="text-sm text-gray-400 self-center"></span>
+                        </div>
+                    </div>
+                    <!-- Tryb auto: Start/Stop -->
+                    <div id="auto-collection-buttons" class="flex space-x-4 mt-4">
+                        <button id="start-collection-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition">▶ Start</button>
+                        <button id="stop-collection-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition">⏹ Stop</button>
+                    </div>
+                    <!-- Tryb półautomatyczny: jedno zdjęcie startowe + Zapisz i uruchom auto -->
+                    <div id="semiauto-labeling-area" class="mt-4 space-y-2" style="display:none;">
+                        <p class="text-gray-400 text-sm">Pobierz jedno zdjęcie z kamery, zaznacz ręcznie gdzie są puszki, potem uruchom automatyczne zbieranie kolejnych klatek.</p>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <button type="button" id="semiauto-capture-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">Pobierz zdjęcie startowe</button>
+                            <button type="button" id="semiauto-save-and-start-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded" style="display:none;">Zapisz startowe i uruchom auto</button>
+                            <button type="button" id="semiauto-stop-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded" style="display:none;">⏹ Stop zbierania</button>
+                            <span class="text-gray-500 mx-1">|</span>
+                            <button type="button" id="semiauto-zoom-out" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1.5 px-3 rounded text-lg">−</button>
+                            <span id="semiauto-zoom-value" class="text-sm text-gray-400 w-10 text-center">100%</span>
+                            <button type="button" id="semiauto-zoom-in" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1.5 px-3 rounded text-lg">+</button>
+                            <button type="button" id="semiauto-delete-last" class="bg-red-800 hover:bg-red-700 text-white text-sm py-1.5 px-2 rounded">Usuń ostatnią ramkę</button>
+                        </div>
+                        <div class="relative rounded-lg overflow-auto bg-black aspect-video max-h-[320px]" id="semiauto-preview-wrapper">
+                            <canvas id="semiauto-canvas" class="rounded-lg" style="display:none;"></canvas>
+                            <p id="semiauto-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-500">Kliknij „Pobierz zdjęcie startowe”</p>
+                        </div>
+                        <p id="semiauto-status" class="text-sm text-gray-400"></p>
+                    </div>
+                    <!-- Tryb ręczny: Zbierz zdjęcie + canvas + Zapisz -->
+                    <div id="manual-labeling-area" class="mt-4 space-y-2" style="display:none;">
+                        <p class="text-gray-400 text-sm">Zbierz klatkę, narysuj prostokąty wokół puszek. Narzędzia: powiększ/pomniejsz, dodaj ramkę, usuń ostatnią/zaznaczoną.</p>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <button type="button" id="capture-frame-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">Zbierz zdjęcie</button>
+                            <button type="button" id="save-labeled-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">Zapisz do datasetu</button>
+                            <span class="text-gray-500 mx-1">|</span>
+                            <button type="button" id="label-zoom-out" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1.5 px-3 rounded text-lg" title="Pomniejsz">−</button>
+                            <span id="label-zoom-value" class="text-sm text-gray-400 w-10 text-center">100%</span>
+                            <button type="button" id="label-zoom-in" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1.5 px-3 rounded text-lg" title="Powiększ">+</button>
+                            <button type="button" id="label-zoom-reset" class="bg-gray-700 hover:bg-gray-600 text-white text-sm py-1.5 px-2 rounded">1:1</button>
+                            <span class="text-gray-500 mx-1">|</span>
+                            <button type="button" id="label-delete-last" class="bg-red-800 hover:bg-red-700 text-white text-sm py-1.5 px-2 rounded">Usuń ostatnią ramkę</button>
+                            <button type="button" id="label-delete-selected" class="bg-red-800 hover:bg-red-700 text-white text-sm py-1.5 px-2 rounded" style="display:none;">Usuń zaznaczoną</button>
+                        </div>
+                        <div class="relative rounded-lg overflow-auto bg-black aspect-video max-h-[320px]" id="label-preview-wrapper">
+                            <canvas id="label-canvas" class="rounded-lg" style="display:none;"></canvas>
+                            <p id="label-canvas-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-500">Kliknij „Zbierz zdjęcie”</p>
+                        </div>
+                        <p id="manual-label-status" class="text-sm text-gray-400"></p>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="bg-gray-900 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold mb-4">Statystyki</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span>Zdjęcia:</span>
+                                    <span id="images-count" class="text-purple-400">0</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span>Etykiety:</span>
+                                    <span id="labels-count" class="text-purple-400">0</span>
+                                </div>
+                            </div>
+                            <div class="mt-4 p-3 bg-purple-900 rounded">
+                                <p class="text-sm text-purple-300" id="mode-hint-auto">
+                                    Tryb auto: wykrywanie tylko <strong>w obszarze ROI</strong> (polygon). Zdefiniuj ROI nad swoim transportem, żeby nie zbierać puszek z drugiego transportera. System zapisuje YOLO TXT.
+                                </p>
+                                <p class="text-sm text-purple-300 hidden" id="mode-hint-semiauto">
+                                    Tryb półautomatyczny: zaznacz puszki na <strong>jednym</strong> zdjęciu startowym, zapisz – potem system sam zbiera kolejne klatki z auto-etykietowaniem (jak w trybie auto).
+                                </p>
+                                <p class="text-sm text-purple-300 hidden" id="mode-hint-manual">
+                                    Tryb ręczny: narysuj prostokąty na zdjęciu i zapisz.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Stage 4: Training -->
+    {% if stage == 4 %}
+    <div class="bg-gray-800 rounded-lg p-6">
+        <h3 class="text-xl font-bold mb-4 text-purple-300">4. Trening Modelu (MLOps)</h3>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Nazwa treningu</label>
+                    <input type="text" id="training-name" value="Training_1" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Dataset</label>
+                    <select id="training-dataset" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                        {% for dataset in datasets %}
+                        <option value="{{ dataset.id }}">{{ dataset.name }} ({{ dataset.images_count }} images)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Model bazowy</label>
+                    <select id="training-model" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                        <option value="yolov8n">YOLOv8 Nano (najszybszy)</option>
+                        <option value="yolov8s">YOLOv8 Small</option>
+                        <option value="yolov8m">YOLOv8 Medium</option>
+                        <option value="yolov8l">YOLOv8 Large</option>
+                        <option value="yolov8x">YOLOv8 XLarge (najdokładniejszy)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Liczba epok</label>
+                    <input type="number" id="training-epochs" value="100" min="1" max="1000" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Batch size</label>
+                    <input type="number" id="training-batch" value="16" min="1" max="128" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                </div>
+                <button id="start-training-btn" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg transition text-lg purple-glow">
+                    🚀 START TRAINING
+                </button>
+            </div>
+            
+            <div>
+                <div class="bg-gray-900 rounded-lg p-4 mb-4">
+                    <h4 class="text-lg font-semibold mb-4">Dashboard Treningu</h4>
+                    <div id="training-status" class="mb-4">
+                        <p class="text-gray-400">Oczekiwanie na start...</p>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span>Postęp:</span>
+                                <span id="training-progress">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-700 rounded-full h-2.5">
+                                <div id="training-progress-bar" class="bg-purple-600 h-2.5 rounded-full transition-all" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <canvas id="training-chart" width="400" height="200"></canvas>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mt-4">
+                            <div class="bg-gray-800 p-3 rounded">
+                                <div class="text-sm text-gray-400">mAP50</div>
+                                <div id="map50-value" class="text-2xl font-bold text-purple-400">-</div>
+                            </div>
+                            <div class="bg-gray-800 p-3 rounded">
+                                <div class="text-sm text-gray-400">mAP50-95</div>
+                                <div id="map50-95-value" class="text-2xl font-bold text-purple-400">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Stage 5: Live Deployment -->
+    {% if stage == 5 %}
+    <div class="bg-gray-800 rounded-lg p-6">
+        <h3 class="text-xl font-bold mb-4 text-purple-300">5. Wdrożenie Live</h3>
+        
+        <div class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium mb-2">Wybierz model</label>
+                <select id="detection-model" class="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white">
+                    <option value="">best.pt (domyślny)</option>
+                    {% for training in trainings %}
+                    {% if training.best_model_path %}
+                    <option value="{{ training.id }}">{{ training.name }} (mAP50: {{ training.final_map50|default:"-" }})</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <button id="start-detection-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition text-lg purple-glow">
+                🎯 URUCHOM PRODUKCJĘ
+            </button>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                <div>
+                    <div class="bg-gray-900 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold mb-2">Dashboard Detekcji</h4>
+                        <div id="detection-preview" class="bg-black rounded-lg aspect-video flex items-center justify-center mb-4">
+                            <p class="text-gray-500">Brak podglądu</p>
+                        </div>
+                        <div id="detection-status" class="text-center p-4 rounded-lg bg-gray-800">
+                            <p class="text-2xl font-bold text-gray-400">NO_CANS</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="bg-gray-900 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold mb-4">Statystyki</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <div class="flex justify-between">
+                                    <span>Wykryte obiekty:</span>
+                                    <span id="detection-count" class="text-purple-400 text-xl font-bold">0</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between">
+                                    <span>Średnia pewność:</span>
+                                    <span id="detection-confidence" class="text-purple-400">-</span>
+                                </div>
+                            </div>
+                            <div class="mt-4 p-3 bg-purple-900 rounded">
+                                <p class="text-sm text-purple-300">
+                                    Status <span class="font-bold text-purple-200">CANS PRESENT</span> pojawi się<br>
+                                    gdy wykryte zostaną puszki na transporterze.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Navigation -->
+    <div class="flex justify-between mt-8">
+        {% if stage > 1 %}
+        <a href="{% url 'wizard_stage' stage=prev_stage %}" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition">
+            ← Poprzedni krok
+        </a>
+        {% else %}
+        <div></div>
+        {% endif %}
+        
+        {% if stage < 5 %}
+        <a href="{% url 'wizard_stage' stage=next_stage %}" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition">
+            Następny krok →
+        </a>
+        {% else %}
+        <div></div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // Stage-specific JavaScript will be added here
+    const stage = {{ stage }};
+    
+    // WebSocket connections
+    let cameraWs = null;
+    let trainingWs = null;
+    let detectionWs = null;
+    
+    // Initialize stage-specific functionality
+    if (stage === 1) {
+        initStage1();
+    } else if (stage === 2) {
+        initStage2();
+    } else if (stage === 3) {
+        initStage3();
+    } else if (stage === 4) {
+        initStage4();
+    } else if (stage === 5) {
+        initStage5();
+    }
+    
+    function initStage1() {
+        document.getElementById('connect-camera-btn').addEventListener('click', async () => {
+            const sel = document.getElementById('camera-select');
+            const cameraId = sel ? sel.value : null;
+            if (!cameraId) {
+                alert('Wybierz kamerę z listy. Jeśli lista jest pusta, dodaj kamerę w panelu admina (Stream URL = adres MJPEG, np. http://10.11.59.18/axis-cgi/mjpg/video.cgi).');
+                return;
+            }
+            const connectResponse = await fetch(`/api/camera/${cameraId}/connect/`, { method: 'POST' });
+            if (connectResponse.ok) {
+                connectCameraWebSocket(parseInt(cameraId, 10));
+            } else {
+                const err = await connectResponse.json().catch(() => ({}));
+                let msg = 'Nie udało się połączyć.\n' + (err.error || connectResponse.statusText || '');
+                if (err.traceback) msg += '\n\nTraceback:\n' + err.traceback;
+                alert(msg);
+            }
+        });
+    }
+    
+    function connectCameraWebSocket(cameraId) {
+        cameraWs = new WebSocket(`ws://${window.location.host}/ws/camera/${cameraId}/`);
+        
+        cameraWs.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'frame') {
+                document.getElementById('camera-preview').innerHTML = `<img src="${data.image}" class="w-full h-full object-contain rounded-lg">`;
+            } else if (data.type === 'error') {
+                document.getElementById('camera-preview').innerHTML = `<p class="text-red-400 p-4">${data.message || 'Błąd kamery'}</p>`;
+            }
+        };
+        cameraWs.onerror = () => {
+            document.getElementById('camera-preview').innerHTML = '<p class="text-red-400 p-4">Błąd połączenia WebSocket. Upewnij się, że serwer działa przez Daphne (WebSockets).</p>';
+        };
+        
+        // Request frames
+        setInterval(() => {
+            if (cameraWs && cameraWs.readyState === WebSocket.OPEN) {
+                cameraWs.send(JSON.stringify({type: 'get_frame'}));
+            }
+        }, 100); // ~10 FPS
+    }
+    
+    function initStage2() {
+        const connectBtn = document.getElementById('connect-camera-btn');
+        const cameraSelect = document.getElementById('camera-select');
+        if (connectBtn && cameraSelect) {
+            connectBtn.addEventListener('click', async () => {
+                const cameraId = cameraSelect.value;
+                if (!cameraId) {
+                    alert('Wybierz kamerę z listy.');
+                    return;
+                }
+                const r = await fetch(`/api/camera/${cameraId}/connect/`, { method: 'POST' });
+                if (r.ok) connectCameraWebSocket(parseInt(cameraId, 10));
+                else {
+                    const err = await r.json().catch(() => ({}));
+                    alert('Nie udało się połączyć z kamerą.\n' + (err.error || ''));
+                }
+            });
+        }
+        document.getElementById('use-admin-background-btn').addEventListener('click', async () => {
+            const cameraId = document.getElementById('camera-select').value;
+            if (!cameraId) {
+                alert('Wybierz kamerę z listy.');
+                return;
+            }
+            const btn = document.getElementById('use-admin-background-btn');
+            btn.disabled = true;
+            btn.textContent = 'Ładowanie...';
+            const response = await fetch(`/api/calibration/${cameraId}/use_admin/`, { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                document.getElementById('h-min').textContent = result.hsv_min[0];
+                document.getElementById('s-min').textContent = result.hsv_min[1];
+                document.getElementById('v-min').textContent = result.hsv_min[2];
+                document.getElementById('h-max').textContent = result.hsv_max[0];
+                document.getElementById('s-max').textContent = result.hsv_max[1];
+                document.getElementById('v-max').textContent = result.hsv_max[2];
+                alert('Wzorzec z panelu admina załadowany. Parametry HSV ustawione.');
+            } else {
+                alert(result.error || 'Błąd ładowania wzorca.');
+            }
+            btn.disabled = false;
+            btn.textContent = '📁 Użyj wzorca z panelu admina';
+        });
+        document.getElementById('capture-background-btn').addEventListener('click', async () => {
+            const cameraId = document.getElementById('camera-select').value;
+            if (!cameraId) {
+                alert('Wybierz kamerę i najpierw kliknij „Połącz i pokaż podgląd”.');
+                return;
+            }
+            const btn = document.getElementById('capture-background-btn');
+            btn.disabled = true;
+            btn.textContent = 'Przetwarzanie...';
+            const response = await fetch(`/api/calibration/${cameraId}/capture/`, { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                document.getElementById('h-min').textContent = result.hsv_min[0];
+                document.getElementById('s-min').textContent = result.hsv_min[1];
+                document.getElementById('v-min').textContent = result.hsv_min[2];
+                document.getElementById('h-max').textContent = result.hsv_max[0];
+                document.getElementById('s-max').textContent = result.hsv_max[1];
+                document.getElementById('v-max').textContent = result.hsv_max[2];
+                alert('Kalibracja zakończona! Przechwycono ' + result.images_captured + ' zdjęć.');
+            } else {
+                alert('Błąd: ' + (result.error || ''));
+            }
+            btn.disabled = false;
+            btn.textContent = '📸 Pobierz wzorzec tła z kamery';
+        });
+    }
+    
+    function initStage3() {
+        let datasetId = null;
+        let collectionActive = false;
+        let roiDrawing = false;
+        let roiPoints = [];
+        let roiCurrent = null;
+        let manualBoxes = [];
+        let manualDrawing = false;
+        let manualStart = null;
+        let manualCurrent = null;
+        let labelCanvasImageData = null;
+        let labelZoom = 1;
+        let selectedBoxIndex = -1;
+        const wrapper = document.getElementById('camera-preview-wrapper');
+        const roiCanvas = document.getElementById('roi-canvas');
+        const defineRoiBtn = document.getElementById('define-roi-btn');
+        const closeRoiPolygonBtn = document.getElementById('close-roi-polygon-btn');
+        const saveRoiBtn = document.getElementById('save-roi-btn');
+        const roiStatus = document.getElementById('roi-status');
+
+        function resizeRoiCanvas() {
+            if (!wrapper || !roiCanvas) return;
+            const rect = wrapper.getBoundingClientRect();
+            roiCanvas.width = rect.width;
+            roiCanvas.height = rect.height;
+            roiCanvas.style.width = rect.width + 'px';
+            roiCanvas.style.height = rect.height + 'px';
+        }
+        function drawRoiPolygon() {
+            if (!roiCanvas) return;
+            const ctx = roiCanvas.getContext('2d');
+            ctx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
+            if (roiPoints.length === 0) return;
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.95)';
+            ctx.lineWidth = 3;
+            ctx.fillStyle = 'rgba(168, 85, 247, 0.2)';
+            ctx.beginPath();
+            ctx.moveTo(roiPoints[0].x, roiPoints[0].y);
+            for (let i = 1; i < roiPoints.length; i++) ctx.lineTo(roiPoints[i].x, roiPoints[i].y);
+            if (roiCurrent) ctx.lineTo(roiCurrent.x, roiCurrent.y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            roiPoints.forEach((p) => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(168, 85, 247, 0.95)';
+                ctx.stroke();
+            });
+        }
+        function roiPolygonToNormalized() {
+            const img = document.querySelector('#camera-preview img');
+            if (!img || !img.complete || roiPoints.length < 3) return null;
+            const wrapRect = wrapper.getBoundingClientRect();
+            const imgRect = img.getBoundingClientRect();
+            const imgL = imgRect.left - wrapRect.left;
+            const imgT = imgRect.top - wrapRect.top;
+            const imgW = imgRect.width;
+            const imgH = imgRect.height;
+            if (imgW <= 0 || imgH <= 0) return null;
+            const n = (v, lo, size) => Math.max(0, Math.min(1, (v - lo) / size));
+            return roiPoints.map((p) => [n(p.x, imgL, imgW), n(p.y, imgT, imgH)]);
+        }
+
+        if (defineRoiBtn && roiCanvas && wrapper) {
+            defineRoiBtn.addEventListener('click', () => {
+                const img = document.querySelector('#camera-preview img');
+                if (!img || !img.complete) {
+                    alert('Najpierw połącz z kamerą i poczekaj na obraz.');
+                    return;
+                }
+                roiDrawing = true;
+                roiPoints = [];
+                roiCurrent = null;
+                resizeRoiCanvas();
+                roiCanvas.style.display = 'block';
+                roiCanvas.style.pointerEvents = 'auto';
+                closeRoiPolygonBtn.style.display = 'none';
+                saveRoiBtn.style.display = 'none';
+                closeRoiPolygonBtn.style.display = 'inline-block';
+                roiStatus.textContent = 'Kliknij punkt po punkcie, aby zdefiniować polygon. Na końcu kliknij „Zamknij polygon”.';
+            });
+            roiCanvas.addEventListener('mousedown', (e) => {
+                if (!roiDrawing) return;
+                const rect = roiCanvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                roiPoints.push({ x, y });
+                roiCurrent = null;
+                drawRoiPolygon();
+            });
+            roiCanvas.addEventListener('mousemove', (e) => {
+                if (!roiDrawing || roiPoints.length === 0) return;
+                const rect = roiCanvas.getBoundingClientRect();
+                roiCurrent = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                drawRoiPolygon();
+            });
+        }
+        if (closeRoiPolygonBtn) {
+            closeRoiPolygonBtn.addEventListener('click', () => {
+                if (roiPoints.length < 3) {
+                    roiStatus.textContent = 'Dodaj co najmniej 3 punkty, aby zamknąć polygon.';
+                    return;
+                }
+                roiDrawing = false;
+                roiCanvas.style.pointerEvents = 'none';
+                roiCurrent = null;
+                drawRoiPolygon();
+                closeRoiPolygonBtn.style.display = 'none';
+                saveRoiBtn.style.display = 'inline-block';
+                roiStatus.textContent = 'Kliknij „Zapisz ROI”.';
+            });
+        }
+        if (saveRoiBtn && wrapper) {
+            saveRoiBtn.addEventListener('click', async () => {
+                const polygon = roiPolygonToNormalized();
+                if (!polygon || polygon.length < 3) {
+                    alert('Zdefiniuj polygon (co najmniej 3 punkty) i zamknij go.');
+                    return;
+                }
+                const cameraId = document.getElementById('camera-select').value;
+                if (!cameraId) {
+                    alert('Wybierz kamerę.');
+                    return;
+                }
+                const r = await fetch(`/api/camera/${cameraId}/roi/`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ polygon })
+                });
+                const res = await r.json();
+                if (res.success) {
+                    roiStatus.textContent = 'ROI (polygon) zapisane.';
+                    document.getElementById('roi-canvas').style.display = 'none';
+                    saveRoiBtn.style.display = 'none';
+                } else {
+                    roiStatus.textContent = res.error || 'Błąd zapisu ROI.';
+                }
+            });
+        }
+        window.addEventListener('resize', resizeRoiCanvas);
+
+        function getLabelMode() {
+            return document.querySelector('input[name="label-mode"]:checked')?.value || 'auto';
+        }
+        function isManualMode() {
+            return getLabelMode() === 'manual';
+        }
+        function isSemiautoMode() {
+            return getLabelMode() === 'semiauto';
+        }
+        function setModeUI() {
+            const mode = getLabelMode();
+            const autoBtns = document.getElementById('auto-collection-buttons');
+            const manualArea = document.getElementById('manual-labeling-area');
+            const semiautoArea = document.getElementById('semiauto-labeling-area');
+            const hintAuto = document.getElementById('mode-hint-auto');
+            const hintManual = document.getElementById('mode-hint-manual');
+            const hintSemiauto = document.getElementById('mode-hint-semiauto');
+            if (autoBtns) autoBtns.style.display = (mode === 'auto') ? 'flex' : 'none';
+            if (manualArea) manualArea.style.display = (mode === 'manual') ? 'block' : 'none';
+            if (semiautoArea) semiautoArea.style.display = (mode === 'semiauto') ? 'block' : 'none';
+            if (hintAuto) hintAuto.classList.toggle('hidden', mode !== 'auto');
+            if (hintManual) hintManual.classList.toggle('hidden', mode !== 'manual');
+            if (hintSemiauto) hintSemiauto.classList.toggle('hidden', mode !== 'semiauto');
+        }
+        document.querySelectorAll('input[name="label-mode"]').forEach((el) => {
+            el.addEventListener('change', setModeUI);
+        });
+        setModeUI();
+
+        const labelCanvas = document.getElementById('label-canvas');
+        const labelPlaceholder = document.getElementById('label-canvas-placeholder');
+        const captureFrameBtn = document.getElementById('capture-frame-btn');
+        const saveLabeledBtn = document.getElementById('save-labeled-btn');
+        const manualLabelStatus = document.getElementById('manual-label-status');
+        const labelWrapper = document.getElementById('label-preview-wrapper');
+
+        function applyLabelZoom() {
+            const zoomVal = document.getElementById('label-zoom-value');
+            if (labelCanvas && labelCanvas.width) {
+                labelCanvas.style.width = (labelCanvas.width * labelZoom) + 'px';
+                labelCanvas.style.height = (labelCanvas.height * labelZoom) + 'px';
+            }
+            if (zoomVal) zoomVal.textContent = Math.round(labelZoom * 100) + '%';
+        }
+        function drawLabelCanvas() {
+            if (!labelCanvas || !labelCanvasImageData) return;
+            const ctx = labelCanvas.getContext('2d');
+            const w = labelCanvas.width;
+            const h = labelCanvas.height;
+            ctx.drawImage(labelCanvasImageData, 0, 0, w, h);
+            manualBoxes.forEach((b, idx) => {
+                const x1 = (b.x_center - b.width / 2) * w;
+                const y1 = (b.y_center - b.height / 2) * h;
+                const isSelected = idx === selectedBoxIndex;
+                ctx.strokeStyle = isSelected ? 'rgba(34, 197, 94, 1)' : 'rgba(34, 197, 94, 0.95)';
+                ctx.lineWidth = isSelected ? 5 : 4;
+                if (isSelected) ctx.setLineDash([8, 4]);
+                ctx.strokeRect(x1, y1, b.width * w, b.height * h);
+                ctx.setLineDash([]);
+            });
+            if (manualCurrent && manualStart) {
+                ctx.strokeStyle = 'rgba(34, 197, 94, 0.95)';
+                ctx.lineWidth = 4;
+                const x1 = Math.min(manualStart.x, manualCurrent.x);
+                const y1 = Math.min(manualStart.y, manualCurrent.y);
+                ctx.strokeRect(x1, y1, Math.abs(manualCurrent.x - manualStart.x), Math.abs(manualCurrent.y - manualStart.y));
+            }
+        }
+        function hitTestBox(px, py) {
+            const w = labelCanvas.width;
+            const h = labelCanvas.height;
+            for (let i = manualBoxes.length - 1; i >= 0; i--) {
+                const b = manualBoxes[i];
+                const x1 = (b.x_center - b.width / 2) * w;
+                const y1 = (b.y_center - b.height / 2) * h;
+                const x2 = x1 + b.width * w;
+                const y2 = y1 + b.height * h;
+                if (px >= x1 && px <= x2 && py >= y1 && py <= y2) return i;
+            }
+            return -1;
+        }
+        if (captureFrameBtn) {
+            captureFrameBtn.addEventListener('click', async () => {
+                const cameraId = document.getElementById('camera-select').value;
+                if (!cameraId) {
+                    alert('Wybierz kamerę i połącz.');
+                    return;
+                }
+                const r = await fetch(`/api/camera/${cameraId}/frame/`);
+                const data = await r.json().catch(() => ({}));
+                if (!data.success || !data.image) {
+                    manualLabelStatus.textContent = 'Nie udało się pobrać klatki.';
+                    return;
+                }
+                const img = new Image();
+                img.onload = () => {
+                    labelCanvas.width = img.width;
+                    labelCanvas.height = img.height;
+                    labelCanvas.style.display = 'block';
+                    if (labelPlaceholder) labelPlaceholder.style.display = 'none';
+                    labelCanvasImageData = img;
+                    manualBoxes = [];
+                    labelZoom = 1;
+                    selectedBoxIndex = -1;
+                    applyLabelZoom();
+                    drawLabelCanvas();
+                    const delSel = document.getElementById('label-delete-selected');
+                    if (delSel) delSel.style.display = 'none';
+                    manualLabelStatus.textContent = 'Narysuj prostokąty wokół puszek (przeciągnij myszką). Kliknij ramkę, aby zaznaczyć i usunąć.';
+                };
+                img.src = data.image;
+            });
+        }
+        if (labelCanvas) {
+            labelCanvas.addEventListener('mousedown', (e) => {
+                if (!labelCanvasImageData) return;
+                const rect = labelCanvas.getBoundingClientRect();
+                const scaleX = labelCanvas.width / rect.width;
+                const scaleY = labelCanvas.height / rect.height;
+                manualDrawing = true;
+                manualStart = { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+                manualCurrent = { ...manualStart };
+            });
+            labelCanvas.addEventListener('mousemove', (e) => {
+                if (!manualDrawing || !manualStart) return;
+                const rect = labelCanvas.getBoundingClientRect();
+                const scaleX = labelCanvas.width / rect.width;
+                const scaleY = labelCanvas.height / rect.height;
+                manualCurrent = { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+                drawLabelCanvas();
+            });
+            labelCanvas.addEventListener('mouseup', () => {
+                if (!manualDrawing || !manualStart || !manualCurrent) return;
+                const w = labelCanvas.width;
+                const h = labelCanvas.height;
+                const dx = Math.abs(manualCurrent.x - manualStart.x);
+                const dy = Math.abs(manualCurrent.y - manualStart.y);
+                if (dx < 8 && dy < 8) {
+                    const mx = (manualStart.x + manualCurrent.x) / 2;
+                    const my = (manualStart.y + manualCurrent.y) / 2;
+                    const hit = hitTestBox(mx, my);
+                    selectedBoxIndex = hit >= 0 ? hit : -1;
+                    const delSel = document.getElementById('label-delete-selected');
+                    if (delSel) delSel.style.display = selectedBoxIndex >= 0 ? 'inline-block' : 'none';
+                } else {
+                    const x1 = Math.min(manualStart.x, manualCurrent.x);
+                    const y1 = Math.min(manualStart.y, manualCurrent.y);
+                    const x2 = Math.max(manualStart.x, manualCurrent.x);
+                    const y2 = Math.max(manualStart.y, manualCurrent.y);
+                    if (x2 - x1 >= 5 && y2 - y1 >= 5) {
+                        manualBoxes.push({
+                            x_center: (x1 + x2) / 2 / w,
+                            y_center: (y1 + y2) / 2 / h,
+                            width: (x2 - x1) / w,
+                            height: (y2 - y1) / h
+                        });
+                        selectedBoxIndex = -1;
+                        const delSel = document.getElementById('label-delete-selected');
+                        if (delSel) delSel.style.display = 'none';
+                    }
+                }
+                manualDrawing = false;
+                manualStart = null;
+                manualCurrent = null;
+                drawLabelCanvas();
+            });
+        }
+        const labelZoomOut = document.getElementById('label-zoom-out');
+        const labelZoomIn = document.getElementById('label-zoom-in');
+        const labelZoomReset = document.getElementById('label-zoom-reset');
+        const labelDeleteLast = document.getElementById('label-delete-last');
+        const labelDeleteSelected = document.getElementById('label-delete-selected');
+        if (labelZoomOut) labelZoomOut.addEventListener('click', () => {
+            if (!labelCanvasImageData) return;
+            labelZoom = Math.max(0.25, labelZoom - 0.25);
+            applyLabelZoom();
+        });
+        if (labelZoomIn) labelZoomIn.addEventListener('click', () => {
+            if (!labelCanvasImageData) return;
+            labelZoom = Math.min(3, labelZoom + 0.25);
+            applyLabelZoom();
+        });
+        if (labelZoomReset) labelZoomReset.addEventListener('click', () => {
+            if (!labelCanvasImageData) return;
+            labelZoom = 1;
+            applyLabelZoom();
+        });
+        if (labelDeleteLast) labelDeleteLast.addEventListener('click', () => {
+            if (manualBoxes.length === 0) return;
+            manualBoxes.pop();
+            selectedBoxIndex = -1;
+            const delSel = document.getElementById('label-delete-selected');
+            if (delSel) delSel.style.display = 'none';
+            drawLabelCanvas();
+        });
+        if (labelDeleteSelected) labelDeleteSelected.addEventListener('click', () => {
+            if (selectedBoxIndex < 0) return;
+            manualBoxes.splice(selectedBoxIndex, 1);
+            selectedBoxIndex = -1;
+            labelDeleteSelected.style.display = 'none';
+            drawLabelCanvas();
+        });
+        if (saveLabeledBtn) {
+            saveLabeledBtn.addEventListener('click', async () => {
+                if (!datasetId) {
+                    alert('Najpierw utwórz dataset.');
+                    return;
+                }
+                const cameraId = document.getElementById('camera-select').value;
+                if (!cameraId) {
+                    alert('Wybierz kamerę.');
+                    return;
+                }
+                saveLabeledBtn.disabled = true;
+                manualLabelStatus.textContent = 'Zapisywanie...';
+                const r = await fetch(`/api/dataset/${datasetId}/add_labeled_image/`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ camera_id: parseInt(cameraId, 10), boxes: manualBoxes })
+                });
+                const res = await r.json().catch(() => ({}));
+                saveLabeledBtn.disabled = false;
+                if (res.success) {
+                    manualLabelStatus.textContent = 'Zapisano. Zdjęcia: ' + res.images_count + ', etykiety: ' + res.labels_count;
+                    document.getElementById('images-count').textContent = res.images_count;
+                    document.getElementById('labels-count').textContent = res.labels_count;
+                } else {
+                    manualLabelStatus.textContent = res.error || 'Błąd zapisu.';
+                }
+            });
+        }
+
+        let semiautoBoxes = [];
+        let semiautoImageData = null;
+        let semiautoImageDataURL = null;
+        let semiautoZoom = 1;
+        let semiautoDrawing = false;
+        let semiautoStart = null;
+        let semiautoCurrent = null;
+        const semiautoCanvas = document.getElementById('semiauto-canvas');
+        const semiautoPlaceholder = document.getElementById('semiauto-placeholder');
+        const semiautoStatus = document.getElementById('semiauto-status');
+        const semiautoCaptureBtn = document.getElementById('semiauto-capture-btn');
+        const semiautoSaveAndStartBtn = document.getElementById('semiauto-save-and-start-btn');
+
+        function drawSemiautoCanvas() {
+            if (!semiautoCanvas || !semiautoImageData) return;
+            const ctx = semiautoCanvas.getContext('2d');
+            const w = semiautoCanvas.width;
+            const h = semiautoCanvas.height;
+            ctx.drawImage(semiautoImageData, 0, 0, w, h);
+            ctx.strokeStyle = 'rgba(34, 197, 94, 0.95)';
+            ctx.lineWidth = 4;
+            semiautoBoxes.forEach((b) => {
+                const x1 = (b.x_center - b.width / 2) * w;
+                const y1 = (b.y_center - b.height / 2) * h;
+                ctx.strokeRect(x1, y1, b.width * w, b.height * h);
+            });
+            if (semiautoCurrent && semiautoStart) {
+                const x1 = Math.min(semiautoStart.x, semiautoCurrent.x);
+                const y1 = Math.min(semiautoStart.y, semiautoCurrent.y);
+                ctx.strokeRect(x1, y1, Math.abs(semiautoCurrent.x - semiautoStart.x), Math.abs(semiautoCurrent.y - semiautoStart.y));
+            }
+        }
+        function applySemiautoZoom() {
+            const zoomVal = document.getElementById('semiauto-zoom-value');
+            if (semiautoCanvas && semiautoCanvas.width) {
+                semiautoCanvas.style.width = (semiautoCanvas.width * semiautoZoom) + 'px';
+                semiautoCanvas.style.height = (semiautoCanvas.height * semiautoZoom) + 'px';
+            }
+            if (zoomVal) zoomVal.textContent = Math.round(semiautoZoom * 100) + '%';
+        }
+
+        if (semiautoCaptureBtn) {
+            semiautoCaptureBtn.addEventListener('click', async () => {
+                const cameraId = document.getElementById('camera-select').value;
+                if (!cameraId) {
+                    alert('Wybierz kamerę i połącz.');
+                    return;
+                }
+                const r = await fetch(`/api/camera/${cameraId}/frame/`);
+                const data = await r.json().catch(() => ({}));
+                if (!data.success || !data.image) {
+                    semiautoStatus.textContent = 'Nie udało się pobrać klatki.';
+                    return;
+                }
+                semiautoImageDataURL = data.image;
+                const img = new Image();
+                img.onload = () => {
+                    semiautoCanvas.width = img.width;
+                    semiautoCanvas.height = img.height;
+                    semiautoCanvas.style.display = 'block';
+                    if (semiautoPlaceholder) semiautoPlaceholder.style.display = 'none';
+                    semiautoImageData = img;
+                    semiautoBoxes = [];
+                    semiautoZoom = 1;
+                    applySemiautoZoom();
+                    drawSemiautoCanvas();
+                    if (semiautoSaveAndStartBtn) semiautoSaveAndStartBtn.style.display = 'inline-block';
+                    semiautoStatus.textContent = 'Zaznacz puszki na zdjęciu (przeciągnij myszką), potem „Zapisz startowe i uruchom auto”.';
+                };
+                img.src = data.image;
+            });
+        }
+        if (semiautoCanvas) {
+            semiautoCanvas.addEventListener('mousedown', (e) => {
+                if (!semiautoImageData) return;
+                const rect = semiautoCanvas.getBoundingClientRect();
+                const scaleX = semiautoCanvas.width / rect.width;
+                const scaleY = semiautoCanvas.height / rect.height;
+                semiautoDrawing = true;
+                semiautoStart = { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+                semiautoCurrent = { ...semiautoStart };
+            });
+            semiautoCanvas.addEventListener('mousemove', (e) => {
+                if (!semiautoDrawing || !semiautoStart) return;
+                const rect = semiautoCanvas.getBoundingClientRect();
+                const scaleX = semiautoCanvas.width / rect.width;
+                const scaleY = semiautoCanvas.height / rect.height;
+                semiautoCurrent = { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+                drawSemiautoCanvas();
+            });
+            semiautoCanvas.addEventListener('mouseup', () => {
+                if (!semiautoDrawing || !semiautoStart || !semiautoCurrent) return;
+                const w = semiautoCanvas.width;
+                const h = semiautoCanvas.height;
+                const dx = Math.abs(semiautoCurrent.x - semiautoStart.x);
+                const dy = Math.abs(semiautoCurrent.y - semiautoStart.y);
+                if (dx >= 5 && dy >= 5) {
+                    const x1 = Math.min(semiautoStart.x, semiautoCurrent.x);
+                    const y1 = Math.min(semiautoStart.y, semiautoCurrent.y);
+                    const x2 = Math.max(semiautoStart.x, semiautoCurrent.x);
+                    const y2 = Math.max(semiautoStart.y, semiautoCurrent.y);
+                    semiautoBoxes.push({
+                        x_center: (x1 + x2) / 2 / w,
+                        y_center: (y1 + y2) / 2 / h,
+                        width: (x2 - x1) / w,
+                        height: (y2 - y1) / h
+                    });
+                }
+                semiautoDrawing = false;
+                semiautoStart = null;
+                semiautoCurrent = null;
+                drawSemiautoCanvas();
+            });
+        }
+        const semiautoZoomOut = document.getElementById('semiauto-zoom-out');
+        const semiautoZoomIn = document.getElementById('semiauto-zoom-in');
+        const semiautoDeleteLast = document.getElementById('semiauto-delete-last');
+        if (semiautoZoomOut) semiautoZoomOut.addEventListener('click', () => {
+            if (!semiautoImageData) return;
+            semiautoZoom = Math.max(0.25, semiautoZoom - 0.25);
+            applySemiautoZoom();
+        });
+        if (semiautoZoomIn) semiautoZoomIn.addEventListener('click', () => {
+            if (!semiautoImageData) return;
+            semiautoZoom = Math.min(3, semiautoZoom + 0.25);
+            applySemiautoZoom();
+        });
+        if (semiautoDeleteLast) semiautoDeleteLast.addEventListener('click', () => {
+            if (semiautoBoxes.length === 0) return;
+            semiautoBoxes.pop();
+            drawSemiautoCanvas();
+        });
+        if (semiautoSaveAndStartBtn) {
+            semiautoSaveAndStartBtn.addEventListener('click', async () => {
+                if (!datasetId) {
+                    alert('Najpierw utwórz dataset!');
+                    return;
+                }
+                const cameraId = document.getElementById('camera-select').value;
+                if (!cameraId) {
+                    alert('Wybierz kamerę.');
+                    return;
+                }
+                if (!semiautoImageDataURL || !semiautoImageData) {
+                    alert('Pobierz zdjęcie startowe i zaznacz puszki.');
+                    return;
+                }
+                const roiStatusRes = await fetch(`/api/camera/${cameraId}/roi_status/`);
+                const roiStatus = await roiStatusRes.json().catch(() => ({}));
+                if (roiStatus.has_roi !== true) {
+                    const go = confirm('ROI nie jest ustawione. Zalecane: zdefiniuj ROI (polygon) nad transportem. Uruchomić zbieranie na całym obrazie?');
+                    if (!go) return;
+                }
+                semiautoSaveAndStartBtn.disabled = true;
+                semiautoStatus.textContent = 'Zapisywanie zdjęcia startowego...';
+                const addRes = await fetch(`/api/dataset/${datasetId}/add_labeled_image/`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        camera_id: parseInt(cameraId, 10),
+                        boxes: semiautoBoxes,
+                        image: semiautoImageDataURL
+                    })
+                });
+                const addData = await addRes.json().catch(() => ({}));
+                if (!addData.success) {
+                    semiautoStatus.textContent = addData.error || 'Błąd zapisu.';
+                    semiautoSaveAndStartBtn.disabled = false;
+                    return;
+                }
+                document.getElementById('images-count').textContent = addData.images_count;
+                document.getElementById('labels-count').textContent = addData.labels_count;
+                semiautoStatus.textContent = 'Uruchamianie automatycznego zbierania...';
+                const startRes = await fetch(`/api/dataset/${datasetId}/start_collection/`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ camera_id: parseInt(cameraId, 10) })
+                });
+                semiautoSaveAndStartBtn.disabled = false;
+                if (startRes.ok) {
+                    collectionActive = true;
+                    updateCollectionStats();
+                    const semiautoStopBtn = document.getElementById('semiauto-stop-btn');
+                    if (semiautoStopBtn) semiautoStopBtn.style.display = 'inline-block';
+                    semiautoStatus.textContent = 'Zapisano startowe. Auto zbieranie w toku – zatrzymaj przyciskiem „Stop zbierania”.';
+                } else {
+                    const err = await startRes.json().catch(() => ({}));
+                    semiautoStatus.textContent = err.error || 'Błąd startu zbierania.';
+                }
+            });
+        }
+
+        const connectBtn = document.getElementById('connect-camera-btn');
+        const cameraSelect = document.getElementById('camera-select');
+        if (connectBtn && cameraSelect) {
+            connectBtn.addEventListener('click', async () => {
+                const cameraId = cameraSelect.value;
+                if (!cameraId) {
+                    alert('Wybierz kamerę z listy.');
+                    return;
+                }
+                const r = await fetch(`/api/camera/${cameraId}/connect/`, { method: 'POST' });
+                if (r.ok) connectCameraWebSocket(parseInt(cameraId, 10));
+                else {
+                    const err = await r.json().catch(() => ({}));
+                    alert('Nie udało się połączyć z kamerą.\n' + (err.error || ''));
+                }
+            });
+        }
+        document.getElementById('create-dataset-btn').addEventListener('click', async () => {
+            const name = document.getElementById('dataset-name').value;
+            const response = await fetch('/api/dataset/create/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name})
+            });
+            const result = await response.json();
+            if (result.success) {
+                datasetId = result.dataset_id;
+                alert('Dataset utworzony!');
+            }
+        });
+        document.getElementById('start-collection-btn').addEventListener('click', async () => {
+            if (!datasetId) {
+                alert('Najpierw utwórz dataset!');
+                return;
+            }
+            const cameraId = document.getElementById('camera-select').value;
+            if (!cameraId) {
+                alert('Wybierz kamerę i kliknij „Połącz i pokaż podgląd”.');
+                return;
+            }
+            const roiStatusRes = await fetch(`/api/camera/${cameraId}/roi_status/`);
+            const roiStatus = await roiStatusRes.json().catch(() => ({}));
+            if (roiStatus.has_roi !== true) {
+                const go = confirm(
+                    'ROI nie jest ustawione. Zbieranie będzie analizować cały obraz – puszki z drugiego transportera mogą być traktowane jako obiekty.\n\n' +
+                    'Zalecane: najpierw kliknij „Zdefiniuj ROI (polygon)” i zaznacz obszar nad swoim transportem, potem „Zapisz ROI”.\n\n' +
+                    'Czy uruchomić zbieranie mimo to (cały obraz)?'
+                );
+                if (!go) return;
+            }
+            const response = await fetch(`/api/dataset/${datasetId}/start_collection/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({camera_id: parseInt(cameraId, 10)})
+            });
+            if (response.ok) {
+                collectionActive = true;
+                updateCollectionStats();
+            } else {
+                const err = await response.json().catch(() => ({}));
+                alert(err.error || 'Błąd startu zbierania.');
+            }
+        });
+        document.getElementById('stop-collection-btn').addEventListener('click', async () => {
+            if (datasetId) {
+                await fetch(`/api/dataset/${datasetId}/stop_collection/`, { method: 'POST' });
+                collectionActive = false;
+            }
+        });
+        const semiautoStopBtn = document.getElementById('semiauto-stop-btn');
+        if (semiautoStopBtn) {
+            semiautoStopBtn.addEventListener('click', async () => {
+                if (datasetId) {
+                    await fetch(`/api/dataset/${datasetId}/stop_collection/`, { method: 'POST' });
+                    collectionActive = false;
+                    semiautoStopBtn.style.display = 'none';
+                }
+            });
+        }
+        async function updateCollectionStats() {
+            if (datasetId) {
+                try {
+                    const r = await fetch(`/api/dataset/${datasetId}/stats/`);
+                    const d = await r.json();
+                    if (d.success) {
+                        const imgEl = document.getElementById('images-count');
+                        const lblEl = document.getElementById('labels-count');
+                        if (imgEl) imgEl.textContent = d.images_count != null ? d.images_count : 0;
+                        if (lblEl) lblEl.textContent = d.labels_count != null ? d.labels_count : 0;
+                    }
+                } catch (e) {}
+            }
+            if (collectionActive && datasetId) setTimeout(updateCollectionStats, 2000);
+        }
+    }
+    
+    function initStage4() {
+        let trainingId = null;
+        let trainingChart = null;
+        
+        document.getElementById('start-training-btn').addEventListener('click', async () => {
+            const datasetId = document.getElementById('training-dataset').value;
+            if (!datasetId) {
+                alert('Wybierz dataset.');
+                return;
+            }
+            const name = document.getElementById('training-name').value;
+            const baseModel = document.getElementById('training-model').value;
+            const epochs = parseInt(document.getElementById('training-epochs').value);
+            const batchSize = parseInt(document.getElementById('training-batch').value);
+            const statusEl = document.getElementById('training-status');
+            statusEl.innerHTML = '<p class="text-yellow-400">Uruchamianie treningu...</p>';
+            
+            const createResponse = await fetch('/api/training/create/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    dataset_id: datasetId,
+                    name,
+                    base_model: baseModel,
+                    epochs,
+                    batch_size: batchSize
+                })
+            });
+            
+            const createResult = await createResponse.json();
+            if (!createResult.success) {
+                statusEl.innerHTML = '<p class="text-red-400">Błąd: ' + (createResult.error || 'Nie udało się utworzyć treningu') + '</p>';
+                return;
+            }
+            trainingId = createResult.training_id;
+            
+            const startResponse = await fetch(`/api/training/${trainingId}/start/`, {
+                method: 'POST'
+            });
+            if (!startResponse.ok) {
+                const err = await startResponse.json().catch(() => ({}));
+                statusEl.innerHTML = '<p class="text-red-400">Błąd startu: ' + (err.error || '') + '</p>';
+                return;
+            }
+            
+            statusEl.innerHTML = '<p class="text-green-400">Trening uruchomiony. Oczekiwanie na epoki...</p>';
+            connectTrainingWebSocket(trainingId);
+            startTrainingPolling(trainingId);
+            
+            if (!trainingChart) {
+                const ctx = document.getElementById('training-chart').getContext('2d');
+                trainingChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {label: 'Loss', data: [], borderColor: 'rgb(139, 92, 246)', tension: 0.1},
+                            {label: 'mAP50', data: [], borderColor: 'rgb(34, 197, 94)', tension: 0.1}
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {beginAtZero: true}
+                        }
+                    }
+                });
+            }
+        });
+        
+        function startTrainingPolling(id) {
+            const statusEl = document.getElementById('training-status');
+            const interval = setInterval(async () => {
+                try {
+                    const r = await fetch(`/api/training/${id}/status/`);
+                    const d = await r.json();
+                    if (!d.success) return;
+                    if (d.status === 'running') {
+                        const msg = d.epoch != null ? `Trening w toku – epoka ${d.epoch}…` : 'Trening w toku (epoki w toku)...';
+                        statusEl.innerHTML = '<p class="text-green-400">' + msg + '</p>';
+                        if (d.progress != null) {
+                            document.getElementById('training-progress').textContent = d.progress + '%';
+                            document.getElementById('training-progress-bar').style.width = d.progress + '%';
+                        }
+                    } else if (d.status === 'completed') {
+                        clearInterval(interval);
+                        statusEl.innerHTML = '<p class="text-green-400">Zakończono.</p>';
+                        document.getElementById('training-progress').textContent = '100%';
+                        document.getElementById('training-progress-bar').style.width = '100%';
+                        if (d.map50 != null) document.getElementById('map50-value').textContent = Number(d.map50).toFixed(3);
+                        if (d.map50_95 != null) document.getElementById('map50-95-value').textContent = Number(d.map50_95).toFixed(3);
+                    } else if (d.status === 'failed') {
+                        clearInterval(interval);
+                        statusEl.innerHTML = '<p class="text-red-400">Trening zakończony błędem. Sprawdź logi serwera (ultralytics/torch/dataset).</p>';
+                    }
+                } catch (e) {}
+            }, 2000);
+        }
+        
+        function connectTrainingWebSocket(trainingId) {
+            try {
+                trainingWs = new WebSocket(`ws://${window.location.host}/ws/training/${trainingId}/`);
+            } catch (e) {
+                return;
+            }
+            trainingWs.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const statusEl = document.getElementById('training-status');
+                if (data.type === 'started') {
+                    statusEl.innerHTML = '<p class="text-green-400">' + (data.message || 'Trening w toku...') + '</p>';
+                } else if (data.type === 'completed') {
+                    statusEl.innerHTML = '<p class="text-green-400">Trening zakończony.</p>';
+                    if (data.map50 != null) document.getElementById('map50-value').textContent = Number(data.map50).toFixed(3);
+                    if (data.map50_95 != null) document.getElementById('map50-95-value').textContent = Number(data.map50_95).toFixed(3);
+                } else if (data.type === 'error') {
+                    statusEl.innerHTML = '<p class="text-red-400">Błąd: ' + (data.message || '') + '</p>';
+                } else if (data.type === 'warning') {
+                    statusEl.innerHTML = '<p class="text-yellow-400">' + (data.message || '') + '</p>';
+                } else if (data.type === 'update') {
+                    if (trainingChart && data.epoch != null) {
+                        trainingChart.data.labels.push(data.epoch);
+                        trainingChart.data.datasets[0].data.push(data.loss);
+                        trainingChart.data.datasets[1].data.push(data.map50);
+                        trainingChart.update();
+                    }
+                    if (data.progress != null) {
+                        document.getElementById('training-progress').textContent = data.progress + '%';
+                        document.getElementById('training-progress-bar').style.width = data.progress + '%';
+                    }
+                    if (data.map50 != null) document.getElementById('map50-value').textContent = Number(data.map50).toFixed(3);
+                    if (data.map50_95 != null) document.getElementById('map50-95-value').textContent = Number(data.map50_95).toFixed(3);
+                }
+            };
+        }
+    }
+    
+    function initStage5() {
+        document.getElementById('start-detection-btn').addEventListener('click', async () => {
+            const modelId = document.getElementById('detection-model').value;
+            
+            const response = await fetch('/api/detection/start/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({training_id: modelId || null})
+            });
+            
+            if (response.ok) {
+                connectDetectionWebSocket();
+            }
+        });
+        
+        function connectDetectionWebSocket() {
+            detectionWs = new WebSocket(`ws://${window.location.host}/ws/detection/`);
+            
+            detectionWs.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'detection') {
+                    const detections = data.detections || [];
+                    const previewEl = document.getElementById('detection-preview');
+                    if (data.image) {
+                        previewEl.innerHTML = 
+                            `<img src="${data.image}" class="w-full h-full object-contain rounded-lg" alt="Podgląd">`;
+                    }
+                    
+                    document.getElementById('detection-count').textContent = data.count != null ? data.count : detections.length;
+                    document.getElementById('detection-confidence').textContent = 
+                        detections.length > 0 ? 
+                        (detections.reduce((a, b) => a + b.confidence, 0) / detections.length * 100).toFixed(1) + '%' : 
+                        '-';
+                    
+                    const statusEl = document.getElementById('detection-status');
+                    if (data.status === 'CANS PRESENT') {
+                        statusEl.innerHTML = '<p class="text-2xl font-bold text-purple-400 purple-glow">CANS PRESENT</p>';
+                        statusEl.className = 'text-center p-4 rounded-lg bg-purple-900 purple-glow';
+                    } else {
+                        statusEl.innerHTML = '<p class="text-2xl font-bold text-gray-400">NO_CANS</p>';
+                        statusEl.className = 'text-center p-4 rounded-lg bg-gray-800';
+                    }
+                }
+            };
+            detectionWs.onerror = () => {
+                document.getElementById('detection-preview').innerHTML = '<p class="text-red-400">Błąd połączenia WebSocket</p>';
+            };
+            detectionWs.onclose = () => {
+                document.getElementById('detection-preview').innerHTML = '<p class="text-gray-500">Połączenie zamknięte</p>';
+            };
+        }
+    }
+</script>
+{% endblock %}

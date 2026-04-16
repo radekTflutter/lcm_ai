@@ -1,0 +1,13 @@
+# Requirements optimized for NVIDIA Jetson (Python 3.8-3.11)
+# Use this file on Jetson devices
+
+Django==4.2.7
+channels==4.0.0
+channels-redis==4.1.0
+daphne==4.0.0
+ultralytics==8.0.196
+opencv-python==4.8.1.78
+numpy==1.24.3
+Pillow==10.1.0
+psutil==5.9.6
+redis==5.0.1

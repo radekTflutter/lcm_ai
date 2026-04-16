@@ -1,0 +1,9 @@
+# Optional: ML stack (training + live detection).
+# Install AFTER requirements.txt. On Python 3.13 / Apple Silicon, install PyTorch first:
+#
+#   pip install torch torchvision
+#   pip install -r requirements-ml.txt
+#
+# Or from https://pytorch.org/get-started/locally/ then: pip install ultralytics
+#
+ultralytics>=8.0
