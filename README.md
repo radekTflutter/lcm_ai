@@ -1,4 +1,4 @@
-# LCM_AI — detekcja „obcych puszek” na taśmie (YOLO + Django)
+# LCM_AI — detecting foreign cans on the conveyor belt (YOLO + Django)
 
 Developed a high-precision computer vision application using **YOLO** (Ultralytics) to automate the detection of **foreign cans** on production conveyors, preventing batch contamination from previous production runs. The system utilizes a **Django-based architecture** to process live camera feeds, applying **Region of Interest (ROI)** filtering with **polygon masking** to analyze only the conveyor region and reduce false positives from adjacent lines. A **REST API** synchronizes detection results with a centralized **SQLite** database and supports interactive workflows through a multi-step wizard UI.
 
